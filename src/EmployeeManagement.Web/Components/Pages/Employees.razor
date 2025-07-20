@@ -1,0 +1,373 @@
+@page "/employees"
+@using EmployeeManagement.Application.DTOs
+@using EmployeeManagement.Application.Interfaces
+@using DevExpress.Blazor
+@using System.ComponentModel.DataAnnotations
+@inject IEmployeeService EmployeeService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>Employee Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h1 class="display-4">Employee Management</h1>
+            <p class="lead">Manage your organization's employees</p>
+        </div>
+        <div class="col-auto">
+            <DxButton Text="Add Employee" 
+                     RenderStyle="ButtonRenderStyle.Primary" 
+                     IconCssClass="dx-icon-add"
+                     Click="() => ShowAddEmployeeDialog()" />
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <DxComboBox Data="@departments"
+                       Value="@selectedDepartment"
+                       ValueChanged="@((string? value) => OnDepartmentChanged(value))"
+                       NullText="All Departments"
+                       ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                       CssClass="w-100" />
+        </div>
+        <div class="col-md-4">
+            <DxTextBox @bind-Text="@searchText"
+                      NullText="Search employees..."
+                      ClearButtonDisplayMode="DataEditorClearButtonDisplayMode.Auto"
+                      CssClass="w-100" />
+        </div>
+        <div class="col-md-4">
+            <DxButton Text="Search" 
+                     RenderStyle="ButtonRenderStyle.Secondary"
+                     IconCssClass="dx-icon-search"
+                     Click="FilterEmployees" />
+            <DxButton Text="Clear" 
+                     RenderStyle="ButtonRenderStyle.Secondary"
+                     IconCssClass="dx-icon-clear"
+                     Click="ClearFilters"
+                     CssClass="ms-2" />
+        </div>
+    </div>
+
+    <DxGrid Data="@filteredEmployees" 
+            KeyFieldName="Id"
+            PageSize="10"
+            ShowPager="true"
+            PagerVisible="true"
+            ShowFilterRow="true"
+            ShowGroupPanel="true"
+            CssClass="w-100">
+        
+        <Columns>
+            <DxGridDataColumn FieldName="Id" Caption="ID" Width="80px" />
+            <DxGridDataColumn FieldName="FullName" Caption="Full Name" Width="200px" />
+            <DxGridDataColumn FieldName="Email" Caption="Email" Width="250px" />
+            <DxGridDataColumn FieldName="PhoneNumber" Caption="Phone" Width="150px" />
+            <DxGridDataColumn FieldName="Position" Caption="Position" Width="200px" />
+            <DxGridDataColumn FieldName="Department" Caption="Department" Width="120px" />
+            <DxGridDataColumn FieldName="Salary" Caption="Salary" DisplayFormat="c" Width="120px" />
+            <DxGridDataColumn FieldName="HireDate" Caption="Hire Date" DisplayFormat="d" Width="120px" />
+            <DxGridDataColumn FieldName="IsActive" Caption="Status" Width="100px">
+                <CellDisplayTemplate>
+                    @{
+                        var employee = (EmployeeDto)context.DataItem;
+                        var badgeClass = employee.IsActive ? "badge bg-success" : "badge bg-danger";
+                        var statusText = employee.IsActive ? "Active" : "Inactive";
+                    }
+                    <span class="@badgeClass">@statusText</span>
+                </CellDisplayTemplate>
+            </DxGridDataColumn>
+            <DxGridCommandColumn Width="150px">
+                <CellDisplayTemplate>
+                    @{
+                        var employee = (EmployeeDto)context.DataItem;
+                    }
+                    <DxButton Text="Edit" 
+                             RenderStyle="ButtonRenderStyle.Link"
+                             IconCssClass="dx-icon-edit"
+                             Click="() => ShowEditEmployeeDialog(employee)" />
+                    <DxButton Text="Delete" 
+                             RenderStyle="ButtonRenderStyle.Link"
+                             IconCssClass="dx-icon-trash"
+                             Click="() => DeleteEmployee(employee.Id)"
+                             CssClass="text-danger ms-2" />
+                </CellDisplayTemplate>
+            </DxGridCommandColumn>
+        </Columns>
+    </DxGrid>
+</div>
+
+<!-- Add/Edit Employee Popup -->
+<DxPopup @bind-Visible="@isEmployeeDialogVisible"
+         HeaderText="@(isEditMode ? "Edit Employee" : "Add Employee")"
+         Width="600px"
+         Height="500px"
+         ShowCloseButton="true"
+         CloseOnOutsideClick="false">
+    <Content>
+        <div class="p-3">
+            <EditForm Model="@currentEmployee" OnValidSubmit="@SaveEmployee">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger mb-3" />
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">First Name</label>
+                        <DxTextBox @bind-Text="@currentEmployee.FirstName" CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.FirstName)" class="text-danger" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Last Name</label>
+                        <DxTextBox @bind-Text="@currentEmployee.LastName" CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.LastName)" class="text-danger" />
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Email</label>
+                        <DxTextBox @bind-Text="@currentEmployee.Email" CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.Email)" class="text-danger" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Phone Number</label>
+                        <DxTextBox @bind-Text="@currentEmployee.PhoneNumber" CssClass="w-100" />
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Position</label>
+                        <DxTextBox @bind-Text="@currentEmployee.Position" CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.Position)" class="text-danger" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Department</label>
+                        <DxComboBox Data="@departments"
+                                   @bind-Value="@currentEmployee.Department"
+                                   CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.Department)" class="text-danger" />
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Salary</label>
+                        <DxSpinEdit @bind-Value="@currentEmployee.Salary" 
+                                   DisplayFormat="c" 
+                                   CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.Salary)" class="text-danger" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Hire Date</label>
+                        <DxDateEdit @bind-Date="@currentEmployee.HireDate" CssClass="w-100" />
+                        <ValidationMessage For="@(() => currentEmployee.HireDate)" class="text-danger" />
+                    </div>
+                </div>
+
+                @if (isEditMode)
+                {
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <DxCheckBox @bind-Checked="@currentEmployee.IsActive" Text="Active" />
+                        </div>
+                    </div>
+                }
+
+                <div class="row">
+                    <div class="col">
+                        <DxButton Text="@(isEditMode ? "Update" : "Create")" 
+                                 RenderStyle="ButtonRenderStyle.Primary"
+                                 SubmitFormOnClick="true" />
+                        <DxButton Text="Cancel" 
+                                 RenderStyle="ButtonRenderStyle.Secondary"
+                                 Click="() => isEmployeeDialogVisible = false"
+                                 CssClass="ms-2" />
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </Content>
+</DxPopup>
+
+@code {
+    private List<EmployeeDto> employees = new();
+    private List<EmployeeDto> filteredEmployees = new();
+    private List<string> departments = new();
+    
+    private string searchText = string.Empty;
+    private string? selectedDepartment;
+    
+    private bool isEmployeeDialogVisible = false;
+    private bool isEditMode = false;
+    private EmployeeFormModel currentEmployee = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+        await LoadDepartments();
+    }
+
+    private async Task LoadEmployees()
+    {
+        employees = (await EmployeeService.GetAllEmployeesAsync()).ToList();
+        FilterEmployees();
+    }
+
+    private async Task LoadDepartments()
+    {
+        departments = (await EmployeeService.GetDepartmentsAsync()).ToList();
+    }
+
+    private void FilterEmployees()
+    {
+        filteredEmployees = employees.Where(e =>
+            (string.IsNullOrEmpty(selectedDepartment) || e.Department == selectedDepartment) &&
+            (string.IsNullOrEmpty(searchText) || 
+             e.FullName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+             e.Email.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+             e.Position.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+    }
+
+    private async Task OnDepartmentChanged(string? department)
+    {
+        selectedDepartment = department;
+        FilterEmployees();
+        await Task.CompletedTask;
+    }
+
+    private void ClearFilters()
+    {
+        searchText = string.Empty;
+        selectedDepartment = null;
+        FilterEmployees();
+    }
+
+    private void ShowAddEmployeeDialog()
+    {
+        currentEmployee = new EmployeeFormModel();
+        isEditMode = false;
+        isEmployeeDialogVisible = true;
+    }
+
+    private void ShowEditEmployeeDialog(EmployeeDto employee)
+    {
+        currentEmployee = new EmployeeFormModel
+        {
+            Id = employee.Id,
+            FirstName = employee.FirstName,
+            LastName = employee.LastName,
+            Email = employee.Email,
+            PhoneNumber = employee.PhoneNumber,
+            Position = employee.Position,
+            Department = employee.Department,
+            Salary = employee.Salary,
+            HireDate = employee.HireDate,
+            IsActive = employee.IsActive
+        };
+        isEditMode = true;
+        isEmployeeDialogVisible = true;
+    }
+
+    private async Task SaveEmployee()
+    {
+        try
+        {
+            if (isEditMode)
+            {
+                var updateDto = new UpdateEmployeeDto
+                {
+                    Id = currentEmployee.Id,
+                    FirstName = currentEmployee.FirstName,
+                    LastName = currentEmployee.LastName,
+                    Email = currentEmployee.Email,
+                    PhoneNumber = currentEmployee.PhoneNumber,
+                    Position = currentEmployee.Position,
+                    Department = currentEmployee.Department,
+                    Salary = currentEmployee.Salary,
+                    HireDate = currentEmployee.HireDate,
+                    IsActive = currentEmployee.IsActive
+                };
+                await EmployeeService.UpdateEmployeeAsync(updateDto);
+            }
+            else
+            {
+                var createDto = new CreateEmployeeDto
+                {
+                    FirstName = currentEmployee.FirstName,
+                    LastName = currentEmployee.LastName,
+                    Email = currentEmployee.Email,
+                    PhoneNumber = currentEmployee.PhoneNumber,
+                    Position = currentEmployee.Position,
+                    Department = currentEmployee.Department,
+                    Salary = currentEmployee.Salary,
+                    HireDate = currentEmployee.HireDate
+                };
+                await EmployeeService.CreateEmployeeAsync(createDto);
+            }
+
+            isEmployeeDialogVisible = false;
+            await LoadEmployees();
+            await LoadDepartments();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving employee: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteEmployee(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this employee?");
+        if (confirmed)
+        {
+            try
+            {
+                await EmployeeService.DeleteEmployeeAsync(id);
+                await LoadEmployees();
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error deleting employee: {ex.Message}");
+            }
+        }
+    }
+
+    public class EmployeeFormModel
+    {
+        public int Id { get; set; }
+        
+        [Required]
+        [StringLength(100)]
+        public string FirstName { get; set; } = string.Empty;
+        
+        [Required]
+        [StringLength(100)]
+        public string LastName { get; set; } = string.Empty;
+        
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+        
+        [Phone]
+        public string? PhoneNumber { get; set; }
+        
+        [Required]
+        [StringLength(200)]
+        public string Position { get; set; } = string.Empty;
+        
+        [Required]
+        [StringLength(150)]
+        public string Department { get; set; } = string.Empty;
+        
+        [Range(0, double.MaxValue)]
+        public decimal Salary { get; set; }
+        
+        public DateTime HireDate { get; set; } = DateTime.Today;
+        
+        public bool IsActive { get; set; } = true;
+    }
+}
