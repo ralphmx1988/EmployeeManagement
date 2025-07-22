@@ -1,0 +1,85 @@
+@* LoadingSpinner Component *@
+
+@if (IsVisible)
+{
+    <div class="@GetContainerClasses()">
+        <div class="@GetSpinnerClasses()">
+            <i class="@GetIconClasses()" role="status" aria-label="@LoadingText"></i>
+            @if (!string.IsNullOrEmpty(LoadingText) && ShowText)
+            {
+                <div class="@GetTextClasses()">
+                    <strong>@LoadingText</strong>
+                    @if (!string.IsNullOrEmpty(SubText))
+                    {
+                        <div class="text-muted small">@SubText</div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; } = true;
+    [Parameter] public string LoadingText { get; set; } = "Loading...";
+    [Parameter] public string SubText { get; set; } = "";
+    [Parameter] public bool ShowText { get; set; } = true;
+    [Parameter] public LoadingSize Size { get; set; } = LoadingSize.Medium;
+    [Parameter] public LoadingType Type { get; set; } = LoadingType.Overlay;
+    [Parameter] public string CssClass { get; set; } = "";
+
+    private string GetContainerClasses()
+    {
+        return Type switch
+        {
+            LoadingType.Overlay => $"loading-overlay {CssClass}",
+            LoadingType.Inline => $"text-center py-4 {CssClass}",
+            LoadingType.Card => $"loading-content {CssClass}",
+            _ => $"text-center {CssClass}"
+        };
+    }
+
+    private string GetSpinnerClasses()
+    {
+        return Type == LoadingType.Card ? "" : "d-flex flex-column align-items-center";
+    }
+
+    private string GetIconClasses()
+    {
+        var baseClasses = "fas fa-spinner fa-spin";
+        var sizeClass = Size switch
+        {
+            LoadingSize.Small => "fa-sm",
+            LoadingSize.Large => "fa-2x",
+            _ => "fa-lg"
+        };
+        
+        var colorClass = "text-primary";
+        
+        return $"{baseClasses} {sizeClass} {colorClass}".Trim();
+    }
+
+    private string GetTextClasses()
+    {
+        return Size switch
+        {
+            LoadingSize.Large => "mt-3 fs-5",
+            LoadingSize.Small => "mt-2 small",
+            _ => "mt-2"
+        };
+    }
+
+    public enum LoadingSize
+    {
+        Small,
+        Medium,
+        Large
+    }
+
+    public enum LoadingType
+    {
+        Overlay,
+        Inline,
+        Card
+    }
+}

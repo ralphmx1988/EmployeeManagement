@@ -1,0 +1,47 @@
+@* Skeleton Loader Component for better loading UX *@
+
+<div class="@GetContainerClasses()">
+    @for (int i = 0; i < Count; i++)
+    {
+        <div class="@GetSkeletonClasses()"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Count { get; set; } = 1;
+    [Parameter] public SkeletonType Type { get; set; } = SkeletonType.Text;
+    [Parameter] public string Height { get; set; } = "1rem";
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public string CssClass { get; set; } = "";
+    [Parameter] public bool Animated { get; set; } = true;
+
+    private string GetContainerClasses()
+    {
+        return $"skeleton-container {CssClass}";
+    }
+
+    private string GetSkeletonClasses()
+    {
+        var baseClass = Animated ? "skeleton skeleton-animated" : "skeleton";
+        var typeClass = Type switch
+        {
+            SkeletonType.Text => "skeleton-text",
+            SkeletonType.Title => "skeleton-title",
+            SkeletonType.Avatar => "skeleton-avatar",
+            SkeletonType.Button => "skeleton-button",
+            SkeletonType.Card => "skeleton-card",
+            _ => "skeleton-text"
+        };
+
+        return $"{baseClass} {typeClass}";
+    }
+
+    public enum SkeletonType
+    {
+        Text,
+        Title,
+        Avatar,
+        Button,
+        Card
+    }
+}

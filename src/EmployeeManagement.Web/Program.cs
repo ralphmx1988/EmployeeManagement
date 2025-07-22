@@ -3,6 +3,7 @@ using EmployeeManagement.Application.Interfaces;
 using EmployeeManagement.Application.Services;
 using EmployeeManagement.Domain.Interfaces;
 using EmployeeManagement.Infrastructure.Repositories;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,11 @@ builder.Services.AddRazorComponents()
 
 // Add DevExpress Blazor services
 builder.Services.AddDevExpressBlazor();
+
+// Configure Data Protection for Kubernetes multi-pod deployment
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/tmp/dataprotection-keys"))
+    .SetApplicationName("EmployeeManagement");
 
 // Register application services following Dependency Injection principles
 builder.Services.AddScoped<IEmployeeRepository, InMemoryEmployeeRepository>();

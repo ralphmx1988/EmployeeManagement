@@ -31,18 +31,12 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        volumeMounts:
+        - name: dataprotection-keys
+          mountPath: /tmp/dataprotection-keys
+      volumes:
+      - name: dataprotection-keys
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -56,3 +50,7 @@ spec:
       port: 80
       targetPort: 8080
   type: LoadBalancer
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600

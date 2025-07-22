@@ -9,6 +9,9 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
+# Copy NuGet configuration to access DevExpress packages
+COPY ["NuGet.Config", "."]
+
 # Copy project files and restore dependencies
 COPY ["src/EmployeeManagement.Web/EmployeeManagement.Web.csproj", "src/EmployeeManagement.Web/"]
 COPY ["src/EmployeeManagement.Application/EmployeeManagement.Application.csproj", "src/EmployeeManagement.Application/"]

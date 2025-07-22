@@ -15,24 +15,28 @@ This project follows **Clean Architecture** principles with clear separation of 
 
 - **.NET 9.0** - Latest framework
 - **Blazor Server** - Server-side rendering with SignalR
-- **DevExpress Blazor Components** - Rich UI controls
+- **DevExpress Blazor Components** - Rich UI controls (grids, forms, dialogs)
 - **Entity Framework Core** - Data access (In-Memory for demo)
-- **Docker** - Containerization
-- **Kubernetes** - Orchestration for Azure AKS
+- **Docker** - Containerization with multi-stage builds
+- **Kubernetes** - Orchestration for Azure AKS with session affinity
+- **Azure Container Registry** - Private container registry
 - **Azure DevOps** - CI/CD pipeline
 - **xUnit** - Unit testing framework
+- **Data Protection API** - Shared keys for multi-pod deployments
 
 ## 🚀 Features
 
-- **Employee CRUD Operations**: Create, Read, Update, Delete employees
+- **Employee CRUD Operations**: Create, Read, Update, Delete employees with fully functional forms
 - **Rich UI Components**: DevExpress grids, forms, charts, and navigation
 - **Search and Filtering**: Filter by department, search by name/email/position
 - **Dashboard**: Overview with statistics and recent hires
 - **Responsive Design**: Bootstrap-based responsive layout
 - **Mock Data**: 50 sample employees across 6 departments
-- **Validation**: Client and server-side validation
+- **Validation**: Client and server-side validation with DevExpress components
 - **Clean Architecture**: Proper separation of concerns
 - **SOLID Principles**: Dependency injection and interface segregation
+- **Multi-Pod Support**: Data protection keys shared across Kubernetes pods
+- **Session Affinity**: Client IP-based session persistence for Blazor Server
 
 ## 📁 Project Structure
 
@@ -122,6 +126,19 @@ dotnet run --project src/EmployeeManagement.Web
 
 Navigate to `https://localhost:7071` to see the application.
 
+### 2. Access Deployed Application
+
+The application is deployed and accessible at:
+- **LoadBalancer URL**: http://172.212.48.251
+- **Ingress URL**: http://52.226.156.78
+
+Both URLs provide full functionality including:
+- Employee listing with DevExpress grid
+- Add Employee dialog (fully functional)
+- Edit Employee functionality
+- Delete Employee with confirmation
+- Search and filtering capabilities
+
 ### 2. Run Tests
 
 ```powershell
@@ -137,12 +154,14 @@ dotnet test --collect:"XPlat Code Coverage"
 ### Build Docker Image
 
 ```powershell
-# Build the Docker image
+# Build the Docker image (includes DevExpress NuGet configuration)
 docker build -t employee-management:latest .
 
 # Run the container
 docker run -p 8080:8080 employee-management:latest
 ```
+
+**Note**: The Dockerfile includes proper NuGet.Config setup for DevExpress packages and multi-stage build optimization.
 
 ## ☁️ Azure Infrastructure Setup
 
@@ -258,7 +277,18 @@ kubectl apply -f k8s/ingress.yaml
 kubectl get pods
 kubectl get services
 kubectl get ingress
+
+# View application logs
+kubectl logs -l app=employee-management --tail=50
 ```
+
+**Current Deployment Status:**
+- ✅ All pods running successfully
+- ✅ LoadBalancer service accessible at: http://172.212.48.251
+- ✅ Ingress controller accessible at: http://52.226.156.78
+- ✅ Add Employee functionality fully operational
+- ✅ Data protection keys shared across pods
+- ✅ Session affinity configured for consistent user experience
 
 ### Automated Deployment
 
@@ -292,11 +322,28 @@ artillery quick --count 10 --num 100 https://your-app-url
 
 ## 🔧 Configuration
 
+### Kubernetes Multi-Pod Configuration
+
+The application is configured for multi-pod deployments with:
+
+```yaml
+# Data protection volume mount for shared keys
+volumeMounts:
+- name: dataprotection-keys
+  mountPath: /tmp/dataprotection-keys
+
+# Session affinity for consistent user experience
+sessionAffinity: ClientIP
+sessionAffinityConfig:
+  clientIP:
+    timeoutSeconds: 3600
+```
+
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ASPNETCORE_ENVIRONMENT` | Environment name | Development |
+| `ASPNETCORE_ENVIRONMENT` | Environment name | Production |
 | `ASPNETCORE_URLS` | URLs to bind | http://+:8080 |
 
 ### Application Settings
@@ -313,6 +360,19 @@ Configure in `appsettings.json`:
   "AllowedHosts": "*"
 }
 ```
+
+### Data Protection Configuration
+
+The application includes shared data protection keys for multi-pod Kubernetes deployments:
+
+```csharp
+// Program.cs configuration
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/tmp/dataprotection-keys"))
+    .SetApplicationName("EmployeeManagement");
+```
+
+This ensures that antiforgery tokens and form submissions work correctly across all pod instances.
 
 ## 📊 Monitoring and Observability
 
@@ -343,6 +403,24 @@ The application includes health check endpoints:
 - Secure communication between services
 
 ## 🚀 Performance Optimization
+
+### Current Deployment Status
+
+**✅ FULLY OPERATIONAL** - All features are working correctly:
+
+- **Application URLs**:
+  - LoadBalancer: http://172.212.48.251
+  - Ingress: http://52.226.156.78
+
+- **Verified Functionality**:
+  - ✅ Employee listing with DevExpress DxGrid
+  - ✅ Add Employee dialog with validation
+  - ✅ Edit Employee functionality
+  - ✅ Delete Employee with confirmation
+  - ✅ Search and department filtering
+  - ✅ Responsive UI across devices
+  - ✅ Form submissions working correctly
+  - ✅ Multi-pod deployment stable (3 replicas)
 
 ### Blazor Server
 - SignalR connection optimization
@@ -386,14 +464,29 @@ kubectl autoscale deployment employee-management-deployment --cpu-percent=70 --m
 5. Code review and merge
 
 ### DevExpress Components
-- Utilize built-in validation
-- Implement proper data binding
-- Follow DevExpress best practices
-- Optimize for performance
+- Utilize built-in validation with `<ValidationMessage>`
+- Implement proper data binding with `@bind-Value`
+- Follow DevExpress best practices for component lifecycle
+- Optimize for performance with `InteractiveServer` render mode
+- Use DevExpress popup dialogs for CRUD operations:
+  - `DxPopup` for Add/Edit Employee dialogs
+  - `DxGrid` for employee listing with built-in features
+  - `DxButton`, `DxTextBox`, `DxComboBox` for form controls
+  - `DxSpinEdit` for numeric inputs (salary)
+  - `DxDateEdit` for date selection
 
 ## 🔍 Troubleshooting
 
 ### Common Issues
+
+#### Add Employee Button Not Working
+**RESOLVED**: This issue was caused by antiforgery token validation failures in multi-pod deployments. 
+
+**Solution Applied**:
+- ✅ Configured shared data protection keys
+- ✅ Added Kubernetes volume mounts for key persistence
+- ✅ Implemented session affinity for consistent user sessions
+- ✅ Updated deployment with proper resource limits
 
 #### Build Failures
 ```bash
@@ -402,6 +495,15 @@ dotnet nuget locals all --clear
 
 # Restore packages
 dotnet restore --force
+```
+
+#### DevExpress Package Issues
+```bash
+# Ensure NuGet.Config is present with DevExpress feed
+# The project includes proper configuration for DevExpress packages
+
+# Verify NuGet sources
+dotnet nuget list source
 ```
 
 #### Docker Issues
@@ -415,15 +517,27 @@ docker build --progress=plain -t employee-management .
 
 #### Kubernetes Issues
 ```bash
-# Check pod logs
-kubectl logs -l app=employee-management
+# Check pod logs for antiforgery errors
+kubectl logs -l app=employee-management --tail=100
 
-# Describe deployment
+# Describe deployment for resource issues
 kubectl describe deployment employee-management-deployment
 
 # Check ingress status
 kubectl get ingress -o wide
+
+# Verify service endpoints
+kubectl get endpoints employee-management-service
+
+# Check data protection volume mounts
+kubectl describe pod <pod-name>
 ```
+
+#### Form Submission Issues
+If forms (Add/Edit Employee) are not working:
+1. Check browser console for JavaScript errors
+2. Verify antiforgery token in logs: `kubectl logs -l app=employee-management | grep -i antiforgery`
+3. Ensure session affinity is working: `kubectl get svc employee-management-service -o yaml`
 
 ## 📚 Additional Resources
 

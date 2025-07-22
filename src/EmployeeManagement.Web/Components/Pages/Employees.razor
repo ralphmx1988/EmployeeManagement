@@ -9,6 +9,17 @@
 
 <PageTitle>Employee Management</PageTitle>
 
+@if (isInitialLoading)
+{
+    <LoadingSpinner IsVisible="true" 
+                   LoadingText="Loading Employee Data..." 
+                   SubText="Please wait while we fetch the employee information."
+                   Size="LoadingSpinner.LoadingSize.Large"
+                   Type="LoadingSpinner.LoadingType.Card" />
+}
+else
+{
+
 <div class="container-fluid">
     <div class="row mb-3">
         <div class="col">
@@ -39,26 +50,35 @@
                       CssClass="w-100" />
         </div>
         <div class="col-md-4">
-            <DxButton Text="Search" 
+            <DxButton Text="@(isSearching ? "Searching..." : "Search")" 
                      RenderStyle="ButtonRenderStyle.Secondary"
-                     IconCssClass="dx-icon-search"
-                     Click="FilterEmployees" />
+                     IconCssClass="@(isSearching ? "fa fa-spinner fa-spin" : "dx-icon-search")"
+                     Click="PerformSearch"
+                     Enabled="@(!isSearching)" />
             <DxButton Text="Clear" 
                      RenderStyle="ButtonRenderStyle.Secondary"
                      IconCssClass="dx-icon-clear"
                      Click="ClearFilters"
-                     CssClass="ms-2" />
+                     CssClass="ms-2"
+                     Enabled="@(!isSearching)" />
         </div>
     </div>
 
-    <DxGrid Data="@filteredEmployees" 
-            KeyFieldName="Id"
-            PageSize="10"
-            ShowPager="true"
-            PagerVisible="true"
-            ShowFilterRow="true"
-            ShowGroupPanel="true"
-            CssClass="w-100">
+    <div class="position-relative">
+        @if (isSearching)
+        {
+            <LoadingSpinner IsVisible="true" 
+                           LoadingText="Searching Employees..."
+                           Type="LoadingSpinner.LoadingType.Overlay" />
+        }
+        <DxGrid Data="@filteredEmployees" 
+                KeyFieldName="Id"
+                PageSize="10"
+                ShowPager="true"
+                PagerVisible="true"
+                ShowFilterRow="true"
+                ShowGroupPanel="true"
+                CssClass="w-100">
         
         <Columns>
             <DxGridDataColumn FieldName="Id" Caption="ID" Width="80px" />
@@ -83,21 +103,26 @@
                 <CellDisplayTemplate>
                     @{
                         var employee = (EmployeeDto)context.DataItem;
+                        var isEmployeeDeleting = isDeleting && deletingEmployeeId == employee.Id;
                     }
                     <DxButton Text="Edit" 
                              RenderStyle="ButtonRenderStyle.Link"
                              IconCssClass="dx-icon-edit"
-                             Click="() => ShowEditEmployeeDialog(employee)" />
-                    <DxButton Text="Delete" 
+                             Click="() => ShowEditEmployeeDialog(employee)"
+                             Enabled="@(!isDeleting)" />
+                    <DxButton Text="@(isEmployeeDeleting ? "Deleting..." : "Delete")" 
                              RenderStyle="ButtonRenderStyle.Link"
-                             IconCssClass="dx-icon-trash"
+                             IconCssClass="@(isEmployeeDeleting ? "fa fa-spinner fa-spin" : "dx-icon-trash")"
                              Click="() => DeleteEmployee(employee.Id)"
-                             CssClass="text-danger ms-2" />
+                             CssClass="text-danger ms-2"
+                             Enabled="@(!isDeleting)" />
                 </CellDisplayTemplate>
             </DxGridCommandColumn>
         </Columns>
     </DxGrid>
-</div>
+    </div>
+
+</div> <!-- End of container-fluid -->
 
 <!-- Add/Edit Employee Popup -->
 <DxPopup @bind-Visible="@isEmployeeDialogVisible"
@@ -107,6 +132,13 @@
          ShowCloseButton="true"
          CloseOnOutsideClick="false">
     <Content>
+        @if (isSaving)
+        {
+            <LoadingSpinner IsVisible="true" 
+                           LoadingText="@(isEditMode ? "Updating Employee..." : "Creating Employee...")"
+                           SubText="Please wait while we save the employee information."
+                           Type="LoadingSpinner.LoadingType.Overlay" />
+        }
         <div class="p-3">
             <EditForm Model="@currentEmployee" OnValidSubmit="@SaveEmployee">
                 <DataAnnotationsValidator />
@@ -178,19 +210,24 @@
 
                 <div class="row">
                     <div class="col">
-                        <DxButton Text="@(isEditMode ? "Update" : "Create")" 
+                        <DxButton Text="@(isSaving ? "Saving..." : (isEditMode ? "Update" : "Create"))" 
                                  RenderStyle="ButtonRenderStyle.Primary"
-                                 SubmitFormOnClick="true" />
+                                 SubmitFormOnClick="true"
+                                 Enabled="@(!isSaving)"
+                                 IconCssClass="@(isSaving ? "fa fa-spinner fa-spin" : (isEditMode ? "dx-icon-save" : "dx-icon-add"))" />
                         <DxButton Text="Cancel" 
                                  RenderStyle="ButtonRenderStyle.Secondary"
                                  Click="() => isEmployeeDialogVisible = false"
-                                 CssClass="ms-2" />
+                                 CssClass="ms-2"
+                                 Enabled="@(!isSaving)" />
                     </div>
                 </div>
             </EditForm>
         </div>
     </Content>
 </DxPopup>
+
+} <!-- End of else block for loading check -->
 
 @code {
     private List<EmployeeDto> employees = new();
@@ -204,10 +241,25 @@
     private bool isEditMode = false;
     private EmployeeFormModel currentEmployee = new();
 
+    // Loading states
+    private bool isInitialLoading = true;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    private bool isSearching = false;
+    private int? deletingEmployeeId = null;
+
     protected override async Task OnInitializedAsync()
     {
-        await LoadEmployees();
-        await LoadDepartments();
+        try
+        {
+            await LoadEmployees();
+            await LoadDepartments();
+        }
+        finally
+        {
+            isInitialLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadEmployees()
@@ -235,15 +287,28 @@
     private async Task OnDepartmentChanged(string? department)
     {
         selectedDepartment = department;
-        FilterEmployees();
-        await Task.CompletedTask;
+        await PerformSearch();
     }
 
-    private void ClearFilters()
+    private async Task PerformSearch()
+    {
+        isSearching = true;
+        StateHasChanged();
+
+        // Simulate a small delay for search (remove in real scenario or if you have async search)
+        await Task.Delay(200);
+        
+        FilterEmployees();
+        
+        isSearching = false;
+        StateHasChanged();
+    }
+
+    private async Task ClearFilters()
     {
         searchText = string.Empty;
         selectedDepartment = null;
-        FilterEmployees();
+        await PerformSearch();
     }
 
     private void ShowAddEmployeeDialog()
@@ -274,6 +339,11 @@
 
     private async Task SaveEmployee()
     {
+        if (isSaving) return; // Prevent double-clicking
+        
+        isSaving = true;
+        StateHasChanged();
+
         try
         {
             if (isEditMode)
@@ -317,13 +387,24 @@
         {
             await JSRuntime.InvokeVoidAsync("alert", $"Error saving employee: {ex.Message}");
         }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
     }
 
     private async Task DeleteEmployee(int id)
     {
+        if (isDeleting || deletingEmployeeId == id) return; // Prevent double-clicking
+        
         var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this employee?");
         if (confirmed)
         {
+            isDeleting = true;
+            deletingEmployeeId = id;
+            StateHasChanged();
+
             try
             {
                 await EmployeeService.DeleteEmployeeAsync(id);
@@ -332,6 +413,12 @@
             catch (Exception ex)
             {
                 await JSRuntime.InvokeVoidAsync("alert", $"Error deleting employee: {ex.Message}");
+            }
+            finally
+            {
+                isDeleting = false;
+                deletingEmployeeId = null;
+                StateHasChanged();
             }
         }
     }
