@@ -3,7 +3,9 @@ using EmployeeManagement.Application.Interfaces;
 using EmployeeManagement.Application.Services;
 using EmployeeManagement.Domain.Interfaces;
 using EmployeeManagement.Infrastructure.Repositories;
+using EmployeeManagement.Infrastructure.Data;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,16 +16,52 @@ builder.Services.AddRazorComponents()
 // Add DevExpress Blazor services
 builder.Services.AddDevExpressBlazor();
 
-// Configure Data Protection for Kubernetes multi-pod deployment
+// Configure Data Protection for container deployment
+var dataProtectionPath = builder.Environment.IsDevelopment() 
+    ? "/tmp/dataprotection-keys" 
+    : "/app/data/dataprotection-keys";
+
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo("/tmp/dataprotection-keys"))
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
     .SetApplicationName("EmployeeManagement");
 
+// Configure Database
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var useInMemoryDatabase = builder.Configuration.GetValue<bool>("UseInMemoryDatabase", true);
+
+if (useInMemoryDatabase || string.IsNullOrEmpty(connectionString))
+{
+    // Development - Use In-Memory Database
+    builder.Services.AddDbContext<EmployeeDbContext>(options =>
+        options.UseInMemoryDatabase("EmployeeManagement"));
+    builder.Services.AddScoped<IEmployeeRepository, InMemoryEmployeeRepository>();
+}
+else
+{
+    // Production - Use SQL Server
+    builder.Services.AddDbContext<EmployeeDbContext>(options =>
+        options.UseSqlServer(connectionString));
+    builder.Services.AddScoped<IEmployeeRepository, EfEmployeeRepository>();
+}
+
 // Register application services following Dependency Injection principles
-builder.Services.AddScoped<IEmployeeRepository, InMemoryEmployeeRepository>();
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 
+// Add health checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<EmployeeDbContext>();
+
 var app = builder.Build();
+
+// Ensure database is created and seeded in production
+if (!app.Environment.IsDevelopment() && !useInMemoryDatabase)
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<EmployeeDbContext>();
+        context.Database.EnsureCreated();
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -35,11 +73,13 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-
 app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Map health check endpoint
+app.MapHealthChecks("/health");
 
 app.Run();

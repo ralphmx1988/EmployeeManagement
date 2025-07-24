@@ -1,207 +1,397 @@
-# Employee Management System - Architecture & Container Flow
+# Employee Management System - Complete Fleet Architecture & Container Flow
 
-This document provides detailed diagrams and explanations of the containerized architecture and application flow for the Employee Management System deployed on Azure Kubernetes Service (AKS).
+This document provides detailed diagrams and explanations of the complete fleet management architecture, including the Shore Command Center, cruise ship deployments, and the Employee Management System containers.
 
-## 🏗️ High-Level Architecture Overview
+## 🏗️ Complete Fleet Management Architecture
 
 ```mermaid
 graph TB
-    subgraph "Azure Cloud"
-        subgraph "Azure Container Registry"
-            ACR[employeemanagementacr.azurecr.io<br/>Docker Images]
+    subgraph "Shore Command Center"
+        subgraph "Shore Infrastructure"
+            SHORE_API[Shore Command Center API<br/>ASP.NET Core Web API<br/>JWT Authentication]
+            SHORE_DB[(Shore Database<br/>SQL Server<br/>Fleet Management)]
+            SHORE_DASHBOARD[Fleet Dashboard<br/>SignalR Real-time Updates]
+            SHORE_REGISTRY[Container Registry<br/>fleet-registry.cruiseline.com]
+        end
+    end
+    
+    subgraph "Cruise Ship Fleet"
+        subgraph "Ship 1 - Ocean Explorer"
+            SHIP1_VM[Ship VM<br/>Windows Server 2022]
+            SHIP1_AGENT[CruiseShip.UpdateAgent<br/>.NET Windows Service]
+            SHIP1_DOCKER[Docker Desktop<br/>Container Runtime]
+            SHIP1_DB[(Local SQL Server<br/>Employee Data)]
+            SHIP1_APP[Employee Management<br/>Blazor Server Container]
         end
         
-        subgraph "Azure Kubernetes Service (AKS)"
-            subgraph "Ingress Layer"
-                NGINX[NGINX Ingress Controller<br/>LoadBalancer IP: 52.226.156.78]
-                LB[Azure LoadBalancer<br/>External IP: 172.212.48.251]
-            end
-            
-            subgraph "Application Pods"
-                POD1[Employee Management Pod 1<br/>Port: 8080]
-                POD2[Employee Management Pod 2<br/>Port: 8080]
-                POD3[Employee Management Pod 3<br/>Port: 8080]
-            end
-            
-            subgraph "Services"
-                SVC[employee-management-service<br/>ClusterIP: 10.0.x.x<br/>Port: 80 → 8080]
-            end
-            
-            subgraph "Storage"
-                PV[Persistent Volume<br/>Data Protection Keys<br/>/tmp/dataprotection-keys]
-            end
+        subgraph "Ship 2 - Sea Voyager"
+            SHIP2_VM[Ship VM<br/>Windows Server 2022]
+            SHIP2_AGENT[CruiseShip.UpdateAgent<br/>.NET Windows Service]
+            SHIP2_DOCKER[Docker Desktop<br/>Container Runtime]
+            SHIP2_DB[(Local SQL Server<br/>Employee Data)]
+            SHIP2_APP[Employee Management<br/>Blazor Server Container]
+        end
+        
+        subgraph "Ship N - Fleet Vessels"
+            SHIPN_VM[Ship VM<br/>Windows/Linux Support]
+            SHIPN_AGENT[CruiseShip.UpdateAgent<br/>.NET Service]
+            SHIPN_DOCKER[Docker Engine<br/>Container Runtime]
+            SHIPN_DB[(Local Database<br/>Employee Data)]
+            SHIPN_APP[Employee Management<br/>Blazor Server Container]
         end
     end
     
-    subgraph "External"
-        USER[Users<br/>Web Browsers]
-        DEVOPS[Azure DevOps<br/>CI/CD Pipeline]
+    subgraph "Azure Cloud (Shore)"
+        subgraph "Azure Container Registry"
+            ACR[employeemanagementacr.azurecr.io<br/>Public Registry Images]
+        end
+        
+        subgraph "Azure Kubernetes Service (Demo)"
+            AKS_PODS[Demo Environment<br/>3 Pod Deployment]
+        end
     end
     
-    USER --> NGINX
-    USER --> LB
-    NGINX --> SVC
-    LB --> SVC
-    SVC --> POD1
-    SVC --> POD2
-    SVC --> POD3
-    POD1 -.-> PV
-    POD2 -.-> PV
-    POD3 -.-> PV
-    DEVOPS --> ACR
-    ACR --> POD1
-    ACR --> POD2
-    ACR --> POD3
+    subgraph "Internet Connectivity"
+        SATELLITE[Satellite Internet<br/>Intermittent Connection]
+        SHORE_NET[Shore Network<br/>High Speed Connection]
+    end
+    
+    %% Shore Command Center Connections
+    SHORE_API <--> SHORE_DB
+    SHORE_API <--> SHORE_DASHBOARD
+    SHORE_API --> SHORE_REGISTRY
+    
+    %% Ship Connections (when online)
+    SHIP1_AGENT -.->|HTTPS API Calls| SHORE_API
+    SHIP2_AGENT -.->|HTTPS API Calls| SHORE_API
+    SHIPN_AGENT -.->|HTTPS API Calls| SHORE_API
+    
+    %% Ship Internal Architecture
+    SHIP1_AGENT --> SHIP1_DOCKER
+    SHIP1_DOCKER --> SHIP1_APP
+    SHIP1_APP --> SHIP1_DB
+    
+    SHIP2_AGENT --> SHIP2_DOCKER
+    SHIP2_DOCKER --> SHIP2_APP
+    SHIP2_APP --> SHIP2_DB
+    
+    SHIPN_AGENT --> SHIPN_DOCKER
+    SHIPN_DOCKER --> SHIPN_APP
+    SHIPN_APP --> SHIPN_DB
+    
+    %% Container Image Flow
+    SHORE_REGISTRY -.->|Pull Images| SHIP1_DOCKER
+    SHORE_REGISTRY -.->|Pull Images| SHIP2_DOCKER
+    SHORE_REGISTRY -.->|Pull Images| SHIPN_DOCKER
+    
+    %% Azure Demo Environment
+    ACR --> AKS_PODS
+    
+    %% Internet Connectivity
+    SATELLITE -.->|When Available| SHORE_NET
+    SHORE_NET --> SHORE_API
 ```
 
-## 🔄 Container Flow Architecture
+## � Cruise Ship Container Deployment Architecture
 
-### Container Hierarchy
+### Fleet Deployment Hierarchy
 
 ```
-Azure Cloud
-├── Azure Container Registry (ACR)
-│   └── employeemanagementacr.azurecr.io/employee-management:latest
-├── Azure Kubernetes Service (AKS)
-│   ├── Ingress Controller (NGINX)
-│   │   ├── External LoadBalancer (52.226.156.78)
-│   │   └── Session Stickiness Configuration
-│   ├── Kubernetes Service
-│   │   ├── ClusterIP Service (employee-management-service)
-│   │   ├── Session Affinity (ClientIP)
-│   │   └── Port Mapping (80 → 8080)
-│   ├── Application Pods (3 Replicas)
-│   │   ├── Pod 1: employee-management-deployment-xxx-1
-│   │   ├── Pod 2: employee-management-deployment-xxx-2
-│   │   └── Pod 3: employee-management-deployment-xxx-3
-│   └── Persistent Storage
-│       └── Data Protection Keys Volume
-└── External Access Points
-    ├── LoadBalancer IP: 172.212.48.251
-    └── Ingress IP: 52.226.156.78
+Maritime Fleet Management System
+├── Shore Command Center (ASP.NET Core Web API)
+│   ├── Fleet Management API
+│   │   ├── Ship Registration & Status
+│   │   ├── Deployment Orchestration
+│   │   ├── Health Monitoring
+│   │   └── Real-time Dashboard (SignalR)
+│   ├── Background Services (Hangfire)
+│   │   ├── Fleet Status Monitoring
+│   │   ├── Update Request Processing
+│   │   ├── Health Metrics Collection
+│   │   └── Alert Management
+│   ├── Database (SQL Server)
+│   │   ├── Ship Registry
+│   │   ├── Deployment History
+│   │   ├── Health Metrics
+│   │   └── Configuration Management
+│   └── Container Registry
+│       ├── Employee Management Images
+│       ├── Update Agent Packages
+│       └── Configuration Templates
+│
+├── Cruise Ship Fleet (25+ Vessels)
+│   ├── Ship VM Infrastructure
+│   │   ├── Windows Server 2019/2022 OR Ubuntu 20.04/22.04
+│   │   ├── Docker Desktop/Engine
+│   │   ├── Local SQL Server Database
+│   │   └── Network Configuration (Static IP + Internet)
+│   ├── CruiseShip.UpdateAgent (.NET Service)
+│   │   ├── Shore API Client (JWT Authentication)
+│   │   ├── Docker Service Integration
+│   │   ├── Health Monitoring Service
+│   │   ├── Update Orchestrator
+│   │   ├── Container Backup Service
+│   │   └── Offline Operation Support
+│   └── Employee Management Containers
+│       ├── Blazor Server Application (Port 80/443)
+│       ├── Local Database Connection
+│       ├── Health Check Endpoints
+│       └── Configuration Management
+│
+└── Azure Demo Environment (Development/Testing)
+    ├── Azure Container Registry (ACR)
+    │   └── employeemanagementacr.azurecr.io/employee-management:latest
+    ├── Azure Kubernetes Service (AKS)
+    │   ├── 3 Pod Deployment
+    │   ├── Load Balancer (172.212.48.251)
+    │   ├── NGINX Ingress (52.226.156.78)
+    │   └── Session Affinity Configuration
+    └── CI/CD Pipeline (Azure DevOps)
+        ├── Automated Build & Test
+        ├── Container Image Creation
+        └── Deployment Automation
 ```
 
-## 🌐 Network Flow Diagram
+## 🔄 Container Update Flow Architecture
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Internet
-    participant Azure_LB as Azure LoadBalancer
-    participant NGINX as NGINX Ingress
-    participant K8s_Service as Kubernetes Service
-    participant Pod1 as App Pod 1
-    participant Pod2 as App Pod 2
-    participant Pod3 as App Pod 3
-    participant Storage as Persistent Volume
+    participant Shore as Shore Command Center
+    participant Registry as Container Registry
+    participant Ship1 as Ship 1 (Ocean Explorer)
+    participant Ship2 as Ship 2 (Sea Voyager)
+    participant ShipN as Ship N (Fleet Vessel)
+    participant Dashboard as Fleet Dashboard
     
-    Note over User,Storage: User Access Flow
-    User->>Internet: HTTP Request
-    Internet->>Azure_LB: Route to 172.212.48.251:80
-    Azure_LB->>NGINX: Forward to NGINX Controller
-    NGINX->>K8s_Service: Route to employee-management-service
+    Note over Shore,Dashboard: Fleet-Wide Container Update Process
     
-    Note over K8s_Service,Pod3: Session Affinity & Load Balancing
-    K8s_Service->>Pod1: Route based on ClientIP hash
-    Pod1->>Storage: Access shared data protection keys
-    Pod1->>K8s_Service: Response with session cookie
-    K8s_Service->>NGINX: Return response
-    NGINX->>Azure_LB: Forward response
-    Azure_LB->>Internet: Return to user
-    Internet->>User: Display Employee Management UI
+    Shore->>Registry: 1. Upload new container image
+    Registry-->>Shore: Image available: v2.1.0
     
-    Note over User,Storage: Subsequent Requests (Same Session)
-    User->>Internet: Add Employee Request
-    Internet->>Azure_LB: Same session cookie
-    Azure_LB->>NGINX: Session stickiness active
-    NGINX->>K8s_Service: Route to same pod
-    K8s_Service->>Pod1: Same pod due to ClientIP affinity
-    Pod1->>Storage: Validate antiforgery token
-    Pod1->>Pod1: Process employee creation
-    Pod1->>K8s_Service: Success response
-    K8s_Service->>NGINX: Return success
-    NGINX->>Azure_LB: Forward response
-    Azure_LB->>User: Employee added successfully
+    Shore->>Shore: 2. Create fleet deployment
+    Shore->>Dashboard: Notify: Fleet update initiated
+    
+    par Ship 1 Update Process
+        Ship1->>Shore: 3a. Poll for updates (every 15 min)
+        Shore-->>Ship1: New deployment available
+        Ship1->>Registry: 4a. Pull new image
+        Registry-->>Ship1: Download container layers
+        Ship1->>Ship1: 5a. Stop current container
+        Ship1->>Ship1: 6a. Start new container
+        Ship1->>Shore: 7a. Report: Update completed
+        Shore->>Dashboard: Update Ship 1 status
+    and Ship 2 Update Process
+        Ship2->>Shore: 3b. Poll for updates
+        Shore-->>Ship2: New deployment available
+        Ship2->>Registry: 4b. Pull new image
+        Registry-->>Ship2: Download container layers
+        Ship2->>Ship2: 5b. Stop current container
+        Ship2->>Ship2: 6b. Start new container
+        Ship2->>Shore: 7b. Report: Update completed
+        Shore->>Dashboard: Update Ship 2 status
+    and Ship N Update Process
+        ShipN->>Shore: 3c. Poll for updates
+        Shore-->>ShipN: New deployment available
+        ShipN->>Registry: 4c. Pull new image
+        Registry-->>ShipN: Download container layers
+        ShipN->>ShipN: 5c. Stop current container
+        ShipN->>ShipN: 6c. Start new container
+        ShipN->>Shore: 7c. Report: Update completed
+        Shore->>Dashboard: Update Ship N status
+    end
+    
+    Shore->>Dashboard: 8. Fleet update completed
+    Dashboard->>Dashboard: Display fleet status: All ships updated
 ```
 
-## 🚀 Application Request Flow
+## 🌐 Ship-to-Shore Communication Flow
 
-### 1. Initial User Request Flow
+```mermaid
+sequenceDiagram
+    participant Ship as CruiseShip.UpdateAgent
+    participant Internet as Satellite Internet
+    participant Shore as Shore Command Center
+    participant Dashboard as Fleet Dashboard
+    participant Registry as Container Registry
+    participant LocalDB as Ship Database
+    
+    Note over Ship,LocalDB: Ship Operations (Continuous)
+    
+    loop Every 15 minutes (when online)
+        Ship->>Internet: Check connectivity
+        alt Internet Available
+            Internet->>Shore: HTTPS Request
+            Ship->>Shore: 1. Register/heartbeat
+            Shore-->>Ship: Ship registered/updated
+            
+            Ship->>Shore: 2. Check for updates
+            Shore-->>Ship: Pending deployments
+            
+            Ship->>Shore: 3. Report health metrics
+            Shore->>Dashboard: Update ship status
+            
+            alt New Deployment Available
+                Ship->>Registry: 4. Download container image
+                Registry-->>Ship: Container layers
+                Ship->>Ship: 5. Update containers
+                Ship->>Shore: 6. Report deployment status
+                Shore->>Dashboard: Update deployment progress
+            end
+            
+        else Internet Offline
+            Ship->>Ship: Continue offline operation
+            Ship->>LocalDB: Use local database
+            Note over Ship: Employee Management continues running
+        end
+    end
+    
+    Note over Ship,LocalDB: Offline Operation Details
+    Ship->>LocalDB: Process employee operations
+    LocalDB-->>Ship: Local data operations
+    Ship->>Ship: Queue updates for next connection
+```
+
+## 🚀 Complete Application Request Flow
+
+### 1. Shore Command Center Operations
 
 ```mermaid
 flowchart TD
-    A[User opens browser] --> B[Navigate to http://172.212.48.251]
-    B --> C{Azure LoadBalancer}
-    C --> D[NGINX Ingress Controller]
-    D --> E[employee-management-service]
-    E --> F{Session Affinity Check}
-    F -->|New Session| G[Route to available pod]
-    F -->|Existing Session| H[Route to same pod]
-    G --> I[App Pod processes request]
-    H --> I
-    I --> J[Generate Blazor Server UI]
-    J --> K[Establish SignalR connection]
-    K --> L[Return HTML + JavaScript]
-    L --> M[User sees Employee Management interface]
+    A[Fleet Manager logs in] --> B[Shore Command Center Dashboard]
+    B --> C[View fleet status via SignalR]
+    C --> D[Monitor 25 ships in real-time]
+    D --> E{Action Required?}
+    
+    E -->|Deploy Update| F[Create fleet deployment]
+    E -->|Monitor Health| G[View health metrics]
+    E -->|Check Status| H[Review deployment history]
+    
+    F --> I[Select ships for deployment]
+    I --> J[Choose container version]
+    J --> K[Initiate deployment]
+    K --> L[Monitor progress in real-time]
+    
+    G --> M[CPU/Memory/Disk metrics]
+    M --> N[Container status]
+    N --> O[Database connectivity]
+    
+    H --> P[Deployment success rates]
+    P --> Q[Error logs and troubleshooting]
+    Q --> R[Ship connectivity status]
 ```
 
-### 2. Employee CRUD Operations Flow
+### 2. Ship Employee Management Flow
 
 ```mermaid
 flowchart TD
-    A[User clicks 'Add Employee'] --> B[Blazor triggers form dialog]
-    B --> C[DxPopup opens with form fields]
-    C --> D[User fills employee data]
-    D --> E[User clicks Save]
-    E --> F[Client-side validation]
-    F -->|Valid| G[Form submission with antiforgery token]
-    F -->|Invalid| H[Show validation errors]
-    G --> I[SignalR sends data to server]
-    I --> J{Pod receives request}
-    J --> K[Validate antiforgery token]
-    K -->|Valid| L[Process business logic]
-    K -->|Invalid| M[Return 400 Bad Request]
-    L --> N[Update in-memory repository]
-    N --> O[Return success response]
-    O --> P[Update Blazor UI state]
-    P --> Q[Refresh DxGrid component]
-    Q --> R[Close dialog and show success]
-    H --> C
-    M --> S[Show error message]
+    A[Ship employee opens browser] --> B[Navigate to http://ship-local-ip]
+    B --> C[Employee Management Blazor App]
+    C --> D[Authenticate user]
+    D --> E[Load employee list from local DB]
+    E --> F[Display DevExpress Grid]
+    
+    F --> G{User Action}
+    G -->|Add Employee| H[Open employee form]
+    G -->|Edit Employee| I[Load existing data]
+    G -->|Delete Employee| J[Confirm deletion]
+    G -->|View Reports| K[Generate reports]
+    
+    H --> L[Fill employee details]
+    L --> M[Validate data]
+    M --> N[Save to local SQL Server]
+    N --> O[Update UI via SignalR]
+    
+    I --> P[Modify employee data]
+    P --> M
+    
+    J --> Q[Remove from local database]
+    Q --> O
+    
+    K --> R[Query local database]
+    R --> S[Display reports]
 ```
 
-### 3. Multi-Pod Session Management Flow
+### 3. Container Update Process on Ship
 
 ```mermaid
 flowchart TD
-    A[First Request] --> B[Load Balancer receives request]
-    B --> C[NGINX applies session affinity]
-    C --> D[Kubernetes Service routes to Pod 1]
-    D --> E[Pod 1 generates session data]
-    E --> F[Store antiforgery token using shared keys]
-    F --> G[Return response with session cookie]
+    A[UpdateAgent polls Shore API] --> B{Updates Available?}
+    B -->|No| C[Continue monitoring]
+    B -->|Yes| D[Download deployment package]
     
-    H[Subsequent Request] --> I[Load Balancer receives request]
-    I --> J[NGINX reads session cookie]
-    J --> K[Routes to same Pod 1 via ClientIP]
-    K --> L[Pod 1 validates antiforgery token]
-    L --> M[Token valid using shared keys]
-    M --> N[Process request successfully]
+    D --> E[Validate package integrity]
+    E --> F[Parse update instructions]
+    F --> G[Create container backup]
+    G --> H[Pull new container image]
     
-    O[If Pod 1 fails] --> P[Request routes to Pod 2/3]
-    P --> Q[Pod 2/3 reads shared protection keys]
-    Q --> R[Validates token successfully]
-    R --> S[Seamless failover completed]
+    H --> I[Stop current container]
+    I --> J[Remove old container]
+    J --> K[Start new container]
+    K --> L[Verify health checks]
+    
+    L -->|Success| M[Report success to Shore]
+    L -->|Failure| N[Rollback to backup]
+    
+    N --> O[Start backup container]
+    O --> P[Report failure to Shore]
+    
+    M --> Q[Update local configuration]
+    P --> R[Log error details]
+    Q --> S[Continue normal operation]
+    R --> S
+    
+    C --> T[Check again in 15 minutes]
+    T --> A
 ```
 
 ## 🐳 Container Specifications
 
-### Application Container Details
+### Shore Command Center Container
 
 ```yaml
-# Container Image
-Repository: employeemanagementacr.azurecr.io/employee-management
+# Shore Command Center API
+Repository: shore-command-center
 Tag: latest
+Base Image: mcr.microsoft.com/dotnet/aspnet:9.0
+
+# Container Resources
+Resources:
+  Requests:
+    CPU: 200m
+    Memory: 512Mi
+  Limits:
+    CPU: 1000m
+    Memory: 1Gi
+
+# Container Ports
+Ports:
+  - containerPort: 8080
+    protocol: TCP
+  - containerPort: 8081
+    protocol: TCP
+
+# Environment Variables
+Environment:
+  - ASPNETCORE_ENVIRONMENT: Production
+  - ASPNETCORE_URLS: http://+:8080
+  - ConnectionStrings__DefaultConnection: "Server=sql-server;Database=ShoreCommandCenter;..."
+  - Jwt__Key: "your-secret-key"
+  - ContainerRegistry__Url: "fleet-registry.cruiseline.com"
+
+# Volume Mounts
+VolumeMounts:
+  - name: config-volume
+    mountPath: /app/config
+  - name: logs-volume
+    mountPath: /app/logs
+```
+
+### Ship Employee Management Container
+
+```yaml
+# Employee Management Application (Ship Deployment)
+Repository: fleet-registry.cruiseline.com/employee-management
+Tag: v2.1.0
 Base Image: mcr.microsoft.com/dotnet/aspnet:9.0
 
 # Container Resources
@@ -222,42 +412,202 @@ Ports:
 Environment:
   - ASPNETCORE_ENVIRONMENT: Production
   - ASPNETCORE_URLS: http://+:8080
-
-# Volume Mounts
-VolumeMounts:
-  - name: dataprotection-keys
-    mountPath: /tmp/dataprotection-keys
-```
-
-### Pod Configuration
-
-```yaml
-# Pod Specification
-Replicas: 3
-Strategy: RollingUpdate
-MaxUnavailable: 1
-MaxSurge: 1
-
-# Session Affinity
-SessionAffinity: ClientIP
-SessionAffinityConfig:
-  ClientIP:
-    TimeoutSeconds: 3600
+  - ConnectionStrings__DefaultConnection: "Server=localhost\\SQLEXPRESS;Database=EmployeeManagement;..."
 
 # Health Checks
-LivenessProbe:
-  httpGet:
-    path: /
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 10
+HealthCheck:
+  Test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+  Interval: 30s
+  Timeout: 10s
+  Retries: 3
+  StartPeriod: 40s
 
-ReadinessProbe:
-  httpGet:
-    path: /
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
+# Restart Policy
+RestartPolicy: unless-stopped
+
+# Network Configuration
+NetworkMode: bridge
+Ports:
+  - "80:8080"
+  - "443:8081"
+```
+
+### CruiseShip.UpdateAgent Service
+
+```yaml
+# Update Agent Configuration
+Service: CruiseShip.UpdateAgent
+Type: Windows Service / Linux systemd
+Runtime: .NET 9.0
+
+# Configuration
+Settings:
+  ShipId: "SHIP-001"
+  ShipName: "Ocean Explorer"
+  ShoreApiUrl: "https://fleet-command.cruiseline.com"
+  ApiKey: "ship-specific-jwt-token"
+  DatabaseConnectionString: "Server=localhost\\SQLEXPRESS;Database=EmployeeManagement;..."
+  DockerNetwork: "ship-network"
+  ContainerRegistry: "fleet-registry.cruiseline.com"
+  HealthCheckIntervalMinutes: 5
+  UpdateCheckIntervalMinutes: 15
+
+# Service Dependencies
+Dependencies:
+  - Docker Desktop/Engine
+  - .NET 9.0 Runtime
+  - SQL Server (LocalDB/Express)
+  - Network connectivity (when available)
+
+# Capabilities
+Features:
+  - Container management via Docker.DotNet
+  - Shore API communication with JWT auth
+  - Health metrics collection and reporting
+  - Automatic container updates
+  - Offline operation support
+  - Container backup and rollback
+  - Real-time status reporting via SignalR
+```
+
+### Fleet Deployment Configuration
+
+```yaml
+# Fleet Deployment Specification
+FleetDeployment:
+  Version: "v2.1.0"
+  TotalShips: 25
+  Strategy: RollingUpdate
+  MaxUnavailable: 5  # 20% of fleet
+  MaxSurge: 0        # No additional ships during update
+  
+# Ship Selection Criteria
+TargetShips:
+  - Criteria: "online-ships"      # Only ships currently connected
+  - Criteria: "all-ships"         # All ships (update when they connect)
+  - Criteria: "specific-ships"    # Named ship list
+  
+# Update Timing
+Schedule:
+  MaintenanceWindow:
+    Start: "02:00 UTC"
+    End: "06:00 UTC"
+  Priority: High | Medium | Low
+  ExpirationTime: "7 days"
+
+# Rollback Configuration
+RollbackPolicy:
+  Enabled: true
+  AutoRollbackOnFailure: true
+  MaxFailurePercentage: 20  # Rollback if >20% of ships fail
+  RollbackTimeout: "30 minutes"
+```
+
+## 🔄 CI/CD Pipeline Flow
+
+```mermaid
+flowchart LR
+    A[Developer Push] --> B[Azure DevOps Trigger]
+    B --> C[Build .NET Applications]
+    C --> D[Run Unit Tests]
+    D --> E[Build Container Images]
+    E --> F[Push to Registries]
+    F --> G[Deploy to Environments]
+    G --> H[Automated Testing]
+    H --> I[Fleet Update Ready]
+    
+    subgraph "Build Stage"
+        C1[Build Employee Management]
+        C2[Build Shore Command Center]
+        C3[Build Update Agent]
+    end
+    
+    subgraph "Containerization"
+        E1[Employee Management Image]
+        E2[Shore Command Center Image]
+        E3[Update Agent Package]
+    end
+    
+    subgraph "Deployment Targets"
+        G1[Azure Demo Environment]
+        G2[Shore Command Center]
+        G3[Fleet Container Registry]
+    end
+    
+    C --> C1
+    C --> C2
+    C --> C3
+    E --> E1
+    E --> E2
+    E --> E3
+    G --> G1
+    G --> G2
+    G --> G3
+```
+
+## 🔧 Fleet Management & Traffic Distribution
+
+### Shore Command Center Load Balancing
+
+```
+Internet Traffic
+    ↓
+Azure Application Gateway / Load Balancer
+    ↓
+Shore Command Center API (Multiple Instances)
+    ↓ (Database Connection Pooling)
+├── Instance 1 (Primary API)
+├── Instance 2 (Secondary API)
+└── Instance 3 (Background Services)
+    ↓
+SQL Server (High Availability)
+├── Primary Database
+└── Read Replicas
+```
+
+### Ship Network Architecture
+
+```
+Ship Local Network
+    ↓
+Ship Router/Firewall (192.168.1.1)
+    ↓
+Ship VM (192.168.1.100)
+├── CruiseShip.UpdateAgent Service (Port 9090)
+├── Docker Engine (Port 2375/2376)
+├── Employee Management Container (Port 80/443)
+├── SQL Server (Port 1433)
+└── Health Monitoring (Port 9091)
+    ↓ (When Internet Available)
+Satellite Internet → Shore Command Center
+```
+
+### Fleet Communication Pattern
+
+```mermaid
+graph TD
+    subgraph "Ship Communication Pattern"
+        A[Ship 1 - UpdateAgent] -.->|Poll every 15 min| D[Shore Command Center]
+        B[Ship 2 - UpdateAgent] -.->|Poll every 15 min| D
+        C[Ship N - UpdateAgent] -.->|Poll every 15 min| D
+        
+        D -->|When updates available| A
+        D -->|When updates available| B
+        D -->|When updates available| C
+        
+        A -->|Report status| E[Fleet Dashboard]
+        B -->|Report status| E
+        C -->|Report status| E
+        
+        F[Fleet Manager] --> D
+        F --> E
+    end
+    
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#e1f5fe
+    style D fill:#e8f5e8
+    style E fill:#fff3e0
 ```
 
 ## 🔄 CI/CD Pipeline Flow
@@ -333,68 +683,167 @@ metadata:
     nginx.ingress.kubernetes.io/session-cookie-path: "/"
 ```
 
-## 📊 Data Flow Architecture
+## 📊 Fleet Data Flow Architecture
 
-### 1. Blazor Server SignalR Connection Flow
+### 1. Ship Health Monitoring Flow
 
 ```mermaid
 sequenceDiagram
-    participant Browser
-    participant SignalR_Hub
-    participant Blazor_App
-    participant Repository
-    participant Memory_Store
+    participant Ship as Ship UpdateAgent
+    participant Health as Health Monitor
+    participant Docker as Docker Engine
+    participant DB as Local Database
+    participant Shore as Shore API
+    participant Dashboard as Fleet Dashboard
     
-    Browser->>SignalR_Hub: Establish WebSocket connection
-    SignalR_Hub->>Blazor_App: Initialize component state
-    Blazor_App->>Repository: Load employee data
-    Repository->>Memory_Store: Fetch from in-memory collection
-    Memory_Store->>Repository: Return employee list
-    Repository->>Blazor_App: Employee DTOs
-    Blazor_App->>SignalR_Hub: Render component tree
-    SignalR_Hub->>Browser: Send DOM updates
-    
-    Note over Browser,Memory_Store: User Interaction
-    Browser->>SignalR_Hub: User clicks Add Employee
-    SignalR_Hub->>Blazor_App: Handle button click event
-    Blazor_App->>Blazor_App: Open DxPopup dialog
-    SignalR_Hub->>Browser: Update DOM (show dialog)
-    
-    Browser->>SignalR_Hub: User submits form
-    SignalR_Hub->>Blazor_App: Process form submission
-    Blazor_App->>Repository: Create new employee
-    Repository->>Memory_Store: Add to collection
-    Memory_Store->>Repository: Confirm addition
-    Repository->>Blazor_App: Return success
-    Blazor_App->>SignalR_Hub: Update component state
-    SignalR_Hub->>Browser: Refresh grid and close dialog
+    loop Every 5 minutes
+        Ship->>Health: Collect system metrics
+        Health->>Docker: Get container status
+        Docker-->>Health: Container health data
+        Health->>DB: Check database connectivity
+        DB-->>Health: Connection status
+        Health->>Ship: Compile health report
+        
+        alt Internet Available
+            Ship->>Shore: Send health metrics
+            Shore->>Dashboard: Update ship status
+            Dashboard->>Dashboard: Display real-time metrics
+        else Offline
+            Ship->>Ship: Cache metrics locally
+            Note over Ship: Metrics sent when connection restored
+        end
+    end
 ```
 
-### 2. Data Protection Keys Flow
+### 2. Fleet Deployment Coordination Flow
 
 ```mermaid
 flowchart TD
-    A[Pod Startup] --> B[Check /tmp/dataprotection-keys]
-    B -->|Keys Exist| C[Load existing keys]
-    B -->|No Keys| D[Generate new keys]
-    C --> E[Configure Data Protection]
-    D --> F[Save keys to persistent volume]
-    F --> E
-    E --> G[Register antiforgery services]
-    G --> H[Application ready]
+    A[Fleet Manager initiates deployment] --> B[Shore API creates FleetDeployment]
+    B --> C[Create individual ship deployments]
+    C --> D[Ships poll for updates]
     
-    I[Form Submission] --> J[Generate antiforgery token]
-    J --> K[Token signed with shared keys]
-    K --> L[Include in form]
-    L --> M[User submits form]
-    M --> N[Validate token signature]
-    N -->|Valid| O[Process request]
-    N -->|Invalid| P[Return 400 error]
+    D --> E{Ship Status Check}
+    E -->|Online| F[Download deployment package]
+    E -->|Offline| G[Queue for next connection]
     
-    style F fill:#e1f5fe
-    style K fill:#e8f5e8
-    style O fill:#e8f5e8
-    style P fill:#ffebee
+    F --> H[Extract and validate package]
+    H --> I[Create container backup]
+    I --> J[Pull new container image]
+    J --> K[Stop current container]
+    K --> L[Start new container]
+    L --> M[Verify health checks]
+    
+    M -->|Success| N[Report success to Shore]
+    M -->|Failure| O[Rollback to backup]
+    
+    N --> P[Update deployment status]
+    O --> Q[Report failure to Shore]
+    
+    G --> R[Wait for connectivity]
+    R --> F
+    
+    P --> S[Check if fleet deployment complete]
+    Q --> S
+    S -->|All ships updated| T[Mark fleet deployment complete]
+    S -->|Ships pending| U[Continue monitoring]
+```
+
+### 3. Offline Operation Data Flow
+
+```mermaid
+flowchart TD
+    A[Ship loses internet connectivity] --> B[UpdateAgent detects offline state]
+    B --> C[Switch to offline mode]
+    C --> D[Continue Employee Management operations]
+    
+    D --> E[Employee CRUD operations]
+    E --> F[Data stored in local SQL Server]
+    F --> G[Health metrics cached locally]
+    G --> H[Update logs queued]
+    
+    H --> I{Connectivity restored?}
+    I -->|No| J[Continue offline operation]
+    I -->|Yes| K[Resume online mode]
+    
+    K --> L[Send cached health metrics]
+    L --> M[Report current status]
+    M --> N[Check for pending updates]
+    N --> O[Resume normal operation]
+    
+    J --> D
+```
+
+## 🔍 Monitoring & Observability Flow
+
+### Fleet Monitoring Stack
+
+```mermaid
+flowchart TB
+    subgraph "Ship Layer"
+        SHIP1[Ship 1 - Health Metrics]
+        SHIP2[Ship 2 - Health Metrics]
+        SHIPN[Ship N - Health Metrics]
+    end
+    
+    subgraph "Shore Command Center"
+        API[Shore API - Collection]
+        DB[(Fleet Database)]
+        SIGNALR[SignalR Hub]
+    end
+    
+    subgraph "Monitoring Dashboard"
+        DASH[Fleet Dashboard]
+        ALERTS[Alert System]
+        REPORTS[Fleet Reports]
+    end
+    
+    subgraph "External Monitoring"
+        EMAIL[Email Notifications]
+        SMS[SMS Alerts]
+        WEBHOOK[Webhook Integration]
+    end
+    
+    SHIP1 -.->|HTTPS| API
+    SHIP2 -.->|HTTPS| API
+    SHIPN -.->|HTTPS| API
+    
+    API --> DB
+    API --> SIGNALR
+    SIGNALR --> DASH
+    DB --> REPORTS
+    
+    ALERTS --> EMAIL
+    ALERTS --> SMS
+    ALERTS --> WEBHOOK
+    
+    DASH --> ALERTS
+```
+
+### Real-time Fleet Status Updates
+
+```mermaid
+sequenceDiagram
+    participant Ships as Fleet Ships
+    participant API as Shore API
+    participant SignalR as SignalR Hub
+    participant Dashboard as Fleet Dashboard
+    participant Manager as Fleet Manager
+    
+    loop Continuous monitoring
+        Ships->>API: Health metrics & status
+        API->>SignalR: Broadcast ship update
+        SignalR->>Dashboard: Real-time UI update
+        Dashboard->>Manager: Display current status
+        
+        Note over API,Dashboard: Alert Detection
+        API->>API: Analyze metrics for alerts
+        alt Alert Condition
+            API->>SignalR: Broadcast alert
+            SignalR->>Dashboard: Show alert notification
+            Dashboard->>Manager: Alert displayed
+        end
+    end
 ```
 
 ## 🔍 Monitoring & Observability Flow
@@ -439,148 +888,227 @@ flowchart TB
     KUBECTL --> POD3
 ```
 
-## 🚀 Scaling Architecture
+## 🚀 Fleet Scaling Architecture
 
-### Horizontal Pod Autoscaler Flow
+### Shore Command Center Auto-scaling
 
 ```mermaid
 flowchart TD
-    A[Increased Traffic] --> B[CPU/Memory Usage > 70%]
-    B --> C[HPA Triggers Scale Event]
-    C --> D[Create New Pod]
-    D --> E[Pod Initialization]
-    E --> F[Load Data Protection Keys]
-    F --> G[Register with Service]
-    G --> H[Ready to Receive Traffic]
-    H --> I[Load Balancer Updates]
-    I --> J[Traffic Distributed Across 4+ Pods]
+    A[Increased Fleet Activity] --> B[API Response Time > 500ms]
+    B --> C[Scale Shore API Instances]
+    C --> D[Load Balancer Updates]
+    D --> E[Database Connection Pool Scaling]
+    E --> F[SignalR Hub Scaling]
+    F --> G[Background Service Scaling]
     
-    K[Traffic Decreases] --> L[CPU/Memory Usage < 50%]
-    L --> M[HPA Triggers Scale Down]
-    M --> N[Graceful Pod Termination]
-    N --> O[Drain Active Connections]
-    O --> P[Remove from Service]
-    P --> Q[Pod Deleted]
+    H[Fleet Size Growth] --> I[More Ships Connecting]
+    I --> J[Database Read Replicas]
+    J --> K[Horizontal API Scaling]
+    K --> L[Redis Cache Layer]
+    L --> M[CDN for Static Assets]
 ```
 
-### Auto-scaling Configuration
+### Ship Container Auto-scaling
+
+```mermaid
+flowchart TD
+    A[High Ship Traffic] --> B[Employee Management CPU > 80%]
+    B --> C[Scale Employee Management Containers]
+    C --> D[Docker Compose Scale Command]
+    D --> E[Load Balance Across Containers]
+    E --> F[Shared Database Connections]
+    
+    G[Low Traffic Period] --> H[CPU < 30% for 10 minutes]
+    H --> I[Scale Down Containers]
+    I --> J[Graceful Container Shutdown]
+    J --> K[Maintain Minimum 1 Container]
+```
+
+### Fleet Auto-scaling Configuration
 
 ```yaml
-# Horizontal Pod Autoscaler
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: employee-management-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: employee-management-deployment
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+# Shore Command Center Scaling
+ShoreScaling:
+  MinInstances: 2
+  MaxInstances: 10
+  TargetCPU: 70%
+  TargetMemory: 80%
+  ScaleUpCooldown: 300s
+  ScaleDownCooldown: 600s
+
+# Ship Employee Management Scaling  
+ShipScaling:
+  MinContainers: 1
+  MaxContainers: 3
+  TargetCPU: 80%
+  TargetMemory: 85%
+  ScaleUpThreshold: 2 minutes
+  ScaleDownThreshold: 10 minutes
+
+# Database Scaling
+DatabaseScaling:
+  ConnectionPoolSize: 100
+  ReadReplicas: 2
+  AutoBackup: true
+  BackupRetention: 30 days
 ```
 
 ## 🔐 Security Flow
 
-### Request Security Validation Flow
+### Fleet Security Architecture
 
 ```mermaid
 flowchart TD
-    A[Incoming Request] --> B{HTTPS Check}
-    B -->|HTTP| C[Redirect to HTTPS]
-    B -->|HTTPS| D[Azure LoadBalancer]
-    C --> D
-    D --> E[NGINX Ingress Controller]
-    E --> F{Security Headers}
-    F --> G[Rate Limiting Check]
-    G --> H[Kubernetes Service]
-    H --> I[Pod Selection]
-    I --> J{Antiforgery Validation}
-    J -->|Valid| K[Process Request]
-    J -->|Invalid| L[Return 400 Error]
-    K --> M[Business Logic]
-    M --> N[Return Response]
-    L --> O[Log Security Event]
+    A[Ship Connection Request] --> B{mTLS Certificate Check}
+    B -->|Valid| C[JWT Token Validation]
+    B -->|Invalid| D[Reject Connection]
     
-    style C fill:#fff3e0
-    style F fill:#e8f5e8
-    style L fill:#ffebee
-    style O fill:#ffebee
+    C -->|Valid Token| E[API Request Processing]
+    C -->|Invalid Token| F[Return 401 Unauthorized]
+    
+    E --> G{Rate Limiting Check}
+    G -->|Within Limits| H[Process Request]
+    G -->|Rate Exceeded| I[Return 429 Too Many Requests]
+    
+    H --> J[Audit Log Entry]
+    J --> K[Return Response]
+    
+    style D fill:#ffebee
+    style F fill:#ffebee
+    style I fill:#fff3e0
+    style K fill:#e8f5e8
+```
+
+### Ship-to-Shore Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant Ship as CruiseShip.UpdateAgent
+    participant Shore as Shore Command Center
+    participant Auth as JWT Service
+    participant DB as Security Database
+    
+    Ship->>Shore: 1. Initial registration request
+    Shore->>Auth: 2. Generate ship-specific API key
+    Auth->>DB: 3. Store ship credentials
+    DB-->>Auth: 4. Credentials stored
+    Auth-->>Shore: 5. API key generated
+    Shore-->>Ship: 6. Return API key + configuration
+    
+    Note over Ship,DB: Subsequent API Calls
+    
+    Ship->>Shore: 7. API request with JWT token
+    Shore->>Auth: 8. Validate JWT token
+    Auth->>DB: 9. Check token validity
+    DB-->>Auth: 10. Token status
+    Auth-->>Shore: 11. Validation result
+    
+    alt Valid Token
+        Shore->>Shore: 12. Process request
+        Shore-->>Ship: 13. Return response
+    else Invalid Token
+        Shore-->>Ship: 14. Return 401 Unauthorized
+    end
 ```
 
 ## 📈 Performance Optimization Flow
 
-### Blazor Server Performance Pipeline
+### Fleet Performance Pipeline
 
 ```mermaid
 flowchart LR
-    A[User Request] --> B[SignalR Connection Check]
-    B --> C[Component State Cache]
-    C --> D[Render Optimization]
-    D --> E[DOM Diff Calculation]
-    E --> F[Minimal UI Updates]
-    F --> G[Client-Side Rendering]
+    A[Ship Request] --> B[Connection Pooling]
+    B --> C[Request Caching]
+    C --> D[Database Query Optimization]
+    D --> E[Response Compression]
+    E --> F[CDN Delivery]
     
-    subgraph "Server Optimizations"
-        H[Connection Pooling]
-        I[Memory Management]
-        J[Garbage Collection]
+    subgraph "Shore Optimizations"
+        G[API Response Caching]
+        H[Database Read Replicas]
+        I[Background Job Processing]
+        J[SignalR Message Batching]
     end
     
-    subgraph "Client Optimizations"
-        K[DOM Virtualization]
-        L[Component Lazy Loading]
-        M[Asset Bundling]
+    subgraph "Ship Optimizations"
+        K[Local Database Caching]
+        L[Offline Data Sync]
+        M[Container Image Layering]
+        N[Health Check Optimization]
     end
     
-    B --> H
-    C --> I
-    D --> J
-    E --> K
-    F --> L
-    G --> M
+    B --> G
+    C --> H
+    D --> I
+    E --> J
+    F --> K
+    A --> L
+    B --> M
+    C --> N
 ```
 
-## 🎯 Current Architecture Status
+## 🎯 Current Fleet Architecture Status
 
 ### ✅ Fully Operational Components
 
-1. **Container Registry**: employeemanagementacr.azurecr.io
-2. **Kubernetes Cluster**: 3-pod deployment with session affinity
-3. **Load Balancing**: Azure LoadBalancer + NGINX Ingress
-4. **Application**: Full CRUD operations working
-5. **Session Management**: Shared data protection keys
-6. **Monitoring**: Logs and metrics available
+1. **Shore Command Center**: Complete ASP.NET Core Web API with SignalR
+   - Fleet management API endpoints
+   - Real-time dashboard with SignalR
+   - JWT authentication and authorization
+   - Background job processing with Hangfire
+   - Comprehensive health monitoring
 
-### 🔄 Traffic Flow Summary
+2. **CruiseShip.UpdateAgent**: Professional .NET Windows Service
+   - Docker container management via Docker.DotNet
+   - Shore API communication with JWT authentication
+   - Health metrics collection and reporting
+   - Automatic container updates with rollback
+   - Offline operation support
+
+3. **Employee Management Containers**: Production-ready Blazor Server app
+   - DevExpress UI components
+   - Local SQL Server database integration
+   - Container health checks
+   - Multi-environment configuration
+
+4. **Azure Demo Environment**: Fully deployed and operational
+   - Azure Container Registry integration
+   - 3-pod Kubernetes deployment
+   - Load balancing with session affinity
+   - CI/CD pipeline automation
+
+### 🔄 Fleet Communication Summary
 
 ```
-User Request → Azure LB → NGINX → K8s Service → Pod (Session Sticky) → Response
-     ↓                                                    ↓
-Session Cookie ←←←←←←←←←←←←←←←←←←←←←←←←←←←← Antiforgery Token
+Ship Update Agent ←→ Shore Command Center ←→ Fleet Dashboard
+         ↓                     ↓                    ↓
+   Container Updates    Fleet Management    Real-time Monitoring
+         ↓                     ↓                    ↓
+  Employee Management   Deployment Status   Health Metrics
+         ↓                     ↓                    ↓
+   Local Database      Centralized Logging   Alert System
 ```
 
-### 📊 Current Metrics
+### 📊 Current Fleet Metrics
 
-- **Pods Running**: 3/3
-- **Response Time**: < 200ms
-- **Availability**: 99.9%
-- **Session Persistence**: 1 hour
-- **Load Distribution**: Even across pods
-- **Memory Usage**: ~200MB per pod
-- **CPU Usage**: ~10-15% per pod
+- **Total Fleet Capacity**: 25+ cruise ships supported
+- **Shore Command Center**: Multi-instance deployment ready
+- **Update Agent Response**: ~15-minute polling interval
+- **Container Update Time**: ~5-10 minutes per ship
+- **Offline Operation**: Unlimited duration support
+- **Health Monitoring**: Real-time metrics collection
+- **Security**: JWT authentication with mTLS ready
+- **Scalability**: Horizontal scaling for shore and ship components
 
-This architecture provides a robust, scalable, and highly available Employee Management System with proper session management, security, and observability features.
+### 🚀 Fleet Deployment Capabilities
+
+1. **Individual Ship Updates**: Target specific ships
+2. **Fleet-wide Deployments**: Rolling updates across entire fleet
+3. **Maintenance Windows**: Scheduled update deployment
+4. **Rollback Support**: Automatic rollback on failure
+5. **Offline Resilience**: Updates applied when connectivity restored
+6. **Health Validation**: Pre and post-update health checks
+7. **Progress Monitoring**: Real-time deployment progress tracking
+8. **Alert System**: Automatic notification of issues or failures
+
+This architecture provides a comprehensive, enterprise-grade fleet management system capable of managing container deployments across a distributed cruise ship fleet with full offline operation support and real-time monitoring capabilities.

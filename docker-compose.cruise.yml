@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # Employee Management Web Application
+  employeemanagement-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: employeemanagement-web
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=EmployeeManagement;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=true;
+      - SHIP_ID=${SHIP_ID:-Ship001}
+      - SHIP_NAME=${SHIP_NAME:-Cruise Ship Alpha}
+      - UPDATE_CHECK_INTERVAL=${UPDATE_CHECK_INTERVAL:-3600}
+    depends_on:
+      - sqlserver
+    volumes:
+      - app-data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - cruise-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: employeemanagement-db
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Express
+    volumes:
+      - db-data:/var/opt/mssql
+      - ./database/backups:/var/opt/mssql/backups
+      - ./database/scripts:/docker-entrypoint-initdb.d
+    networks:
+      - cruise-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q 'SELECT 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Container Update Agent
+  update-agent:
+    build:
+      context: ./cruise-ship-tools
+      dockerfile: Dockerfile.update-agent
+    container_name: update-agent
+    environment:
+      - REGISTRY_URL=${REGISTRY_URL:-registry.cruiseline.com}
+      - SHIP_ID=${SHIP_ID:-Ship001}
+      - UPDATE_CHECK_INTERVAL=${UPDATE_CHECK_INTERVAL:-3600}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/app/config
+      - ./logs:/app/logs
+    networks:
+      - cruise-network
+    restart: unless-stopped
+    depends_on:
+      - employeemanagement-web
+
+  # NGINX Load Balancer & Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - cruise-network
+    restart: unless-stopped
+    depends_on:
+      - employeemanagement-web
+
+  # Health Monitor & Dashboard
+  health-monitor:
+    build:
+      context: ./cruise-ship-tools
+      dockerfile: Dockerfile.health-monitor
+    container_name: health-monitor
+    ports:
+      - "9090:9090"
+    environment:
+      - SHIP_ID=${SHIP_ID:-Ship001}
+      - MONITORING_INTERVAL=60
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    networks:
+      - cruise-network
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+  app-data:
+    driver: local
+
+networks:
+  cruise-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
