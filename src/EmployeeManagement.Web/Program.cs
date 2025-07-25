@@ -6,6 +6,7 @@ using EmployeeManagement.Infrastructure.Repositories;
 using EmployeeManagement.Infrastructure.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,8 +18,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddDevExpressBlazor();
 
 // Configure Data Protection for container deployment
-var dataProtectionPath = builder.Environment.IsDevelopment() 
-    ? "/tmp/dataprotection-keys" 
+var dataProtectionPath = builder.Environment.IsDevelopment()
+    ? "/tmp/dataprotection-keys"
     : "/app/data/dataprotection-keys";
 
 builder.Services.AddDataProtection()
@@ -40,7 +41,8 @@ else
 {
     // Production - Use SQL Server
     builder.Services.AddDbContext<EmployeeDbContext>(options =>
-        options.UseSqlServer(connectionString));
+        options.UseSqlServer(connectionString).ConfigureWarnings(warnings =>
+            warnings.Ignore(RelationalEventId.PendingModelChangesWarning)));
     builder.Services.AddScoped<IEmployeeRepository, EfEmployeeRepository>();
 }
 
@@ -56,11 +58,9 @@ var app = builder.Build();
 // Ensure database is created and seeded in production
 if (!app.Environment.IsDevelopment() && !useInMemoryDatabase)
 {
-    using (var scope = app.Services.CreateScope())
-    {
-        var context = scope.ServiceProvider.GetRequiredService<EmployeeDbContext>();
-        context.Database.EnsureCreated();
-    }
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<EmployeeDbContext>();
+    context.Database.EnsureCreated();
 }
 
 // Configure the HTTP request pipeline.

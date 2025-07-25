@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: employee-management
-        image: employeemanagementacr.azurecr.io/employee-management:latest
+        image: employeemanagementacr.azurecr.io/employee-management:v20250724-164919
         ports:
         - containerPort: 8080
         env:
